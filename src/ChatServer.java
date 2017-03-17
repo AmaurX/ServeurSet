@@ -4,6 +4,7 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
+import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.UnknownHostException;
@@ -87,16 +88,27 @@ public class ChatServer {
 	}
 	
 	public static void main(String args[]){
+		
 		ServerSocket server = createServer(1708);
-		System.out.println("hello there");
+		InetAddress address = null;
+		try {
+			address = InetAddress.getLocalHost();
+		} catch (UnknownHostException e1) {
+			// TODO Auto-generated catch block
+			e1.printStackTrace();
+		}
+	      String hostIP = address.getHostAddress() ;
+		  String hostName = address.getHostName();
+		  System.out.println( "Le nom de serveur est : " + hostName + "\nIP: " + hostIP);
+
 		while(!killed){
-			System.out.println("helloMaybe");
 			final Socket s = acceptConnection(server);
-			System.out.println("hello");
+			  System.out.println("Le serveur est à l'écoute du port "+s.getLocalPort());
+
+			System.out.println("connection etablie");
 			final PrintWriter s_out = connectionOut(s);
 			final BufferedReader s_in = connectionIn(s);
-
-
+			
 			Thread t = new Thread(){
 				public void run(){
 					String my_login = null;

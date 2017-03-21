@@ -81,11 +81,12 @@ public class ChatServer {
 
 	static void print_all(String message){
 		ConnectionList cl = outs;
-		
-		while(cl != null){
-			cl.out.println(message);	
-			cl = cl.tail;
-		}		
+		if(message!=null){
+			while(cl != null){
+				cl.out.println(message);	
+				cl = cl.tail;
+			}		
+		}
 	}
 	
 	public static void main(String args[]){
@@ -101,7 +102,11 @@ public class ChatServer {
 	      String hostIP = address.getHostAddress() ;
 		  String hostName = address.getHostName();
 		  System.out.println( "Le nom de serveur est : " + hostName + "\nIP: " + hostIP);
-
+		 
+		Integer[] jeu = new Integer[15];
+		Integer[] table = new Integer[15];
+		boolean[] deck = new boolean[81];
+		
 		while(!killed){
 			final Socket s = acceptConnection(server);
 			  System.out.println("Le serveur est à l'écoute du port "+s.getLocalPort());
@@ -110,26 +115,92 @@ public class ChatServer {
 			final PrintWriter s_out = connectionOut(s);
 			final BufferedReader s_in = connectionIn(s);
 			
+			
 			Thread t = new Thread(){
-				private Scanner sc;
-				private Integer[] jeu = new Integer[15];
 				
+
 				public void genererNouveauJeu(){
 			        Random tirage = new Random();
+			        for(int i =0; i<81;i++){
+			        	deck[i]=false;
+			        };
 					for(int i = 0; i<12;i++){
-						jeu[i]= tirage.nextInt(81);
+						boolean flag = true;
+						int numeroDeCarte = -1;
+						while(flag){
+							numeroDeCarte = tirage.nextInt(81);
+							flag = deck[numeroDeCarte];
+						}
+						
+						jeu[i]= numeroDeCarte;
+						deck[numeroDeCarte]=true;
+						table[i]= numeroDeCarteToK(numeroDeCarte);
+						if(table[i]<85){
+						}
 					}
 					jeu[12]=-1;
 					jeu[13]=-1;
 					jeu[14]=-1;
+					table[12]=-1;
+					table[13]=-1;
+					table[14]=-1;
+					if(isThereMatch()){
+
+					}
+					else{
+					}
 				}
 				
+				public boolean isThereMatch() {
+
+			        for (int card1 : table) {
+
+			        	if(card1 == -1) continue;
+			            for (int card2 : table) {
+
+			                if (card1 == card2) continue;
+			                if(card2 == -1) continue;
+			                for (int card3 : table) {
+
+			                	if(card3 == -1)continue;
+			                    if (card1 == card3 || card2 == card3) continue;
+			                    if (Cards.isSet(card1, card2, card3)){
+
+			                    	return true;
+			                    }
+			                }
+			            }
+			        }
+
+			        return false;
+
+			    }
+				
+				public int numeroDeCarteToK(int numeroDeCarte) {
+					if(numeroDeCarte == -1)return -1;
+			        int a = numeroDeCarte % 3;
+			        int b = (numeroDeCarte - a) / 3 % 3;
+			        int c = (numeroDeCarte - a - 3 * b) / 9 % 3;
+			        int d = (numeroDeCarte - a - 3 * b - 9 * c) / 27 % 3;
+			        return ((a + 1) + 4 * (b + 1) + 16 * (c + 1) + 64 * (d + 1));
+			    }
+
+			    public int kToNumeroDeCarte(int k) {
+			    	if(k == -1)return -1;
+			        int a = k % 4;
+			        int b = (k - a) / 4 % 4;
+			        int c = (k - a - 4 * b) / 16 % 4;
+			        int d = (k - a - 4 * b - 16 * c) / 64 % 4;
+			        return ((a - 1) + 3 * (b - 1) + 9 * (c - 1) + 27 * (d - 1));
+			    }
+				
 				public void sendGame(){
-					String game = "theGame ";
+					String game = "theGame/";
 					for(int i = 0;i<15;i++){
 						game+= jeu[i] + "/"; 
 					}
 					print_all(game);
+					System.out.println(game);
 				}
 				
 				public void run(){
@@ -143,10 +214,8 @@ public class ChatServer {
 							catch (IOException e){
 								throw new RuntimeException("Cannot read from socket");
 							}
-
-							sc = new Scanner(line);
-							sc.useDelimiter(" ");
-
+							Scanner sc = new Scanner(line);
+							sc.useDelimiter("/");
 							String token = sc.next();
 							if(my_login != null){
 								//La on met notre truc
@@ -155,15 +224,17 @@ public class ChatServer {
 									sendGame();
 								}
 								
-								if(token.equals("TRY"))
+								else if(token.equals("TRY")){
+								}
 								
 								
 								
-								if(token.equals("SEND")){
+								else if(token.equals("SEND")){
 									sc.useDelimiter("\n");
 									String message = sc.next();
 									print_all(my_login + ":" + message);
 								} 
+								
 								else if(token.equals("LOGOUT")){
 										s_out.println("Bye Bye " + my_login );
 										throw new RuntimeException("Requested by user");
@@ -194,6 +265,7 @@ public class ChatServer {
 						}	
 					} 
 					catch(RuntimeException error){
+						System.out.println("disconnection");
 						s_out.println("DISCONNECTED: exn "+error);
 						s_out.flush();
 						try { s.close(); } catch(IOException e){}

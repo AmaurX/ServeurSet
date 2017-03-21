@@ -1,4 +1,3 @@
-package com.polytechnique.marc.amaury.set;
 
 /**
  * A Set! card is defined by its four characteristics: number, color,
@@ -78,11 +77,13 @@ class Cards {
      * @returns whether we have a set
      */
     static boolean isSet(int a, int b, int c) {
+
         if (a == -1 || b == -1 || c == -1) return false;
         for (int i = 0; i < 4; ++i) {
             if (((a & 0x3) + (b & 0x3) + (c & 0x3)) % 3 != 0) {
                 return false;
             }
+
             a >>= 2;
             b >>= 2;
             c >>= 2;

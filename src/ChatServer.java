@@ -10,6 +10,8 @@ import java.net.Socket;
 import java.net.UnknownHostException;
 import java.util.Random;
 import java.util.Scanner;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.locks.ReentrantLock;
 
 
 final class ConnectionList {
@@ -88,6 +90,68 @@ public class ChatServer {
 			}		
 		}
 	}
+	static public boolean isThereMatch(Integer[] table) {
+
+        for (int card1 : table) {
+
+        	if(card1 == -1) continue;
+            for (int card2 : table) {
+
+                if (card1 == card2) continue;
+                if(card2 == -1) continue;
+                for (int card3 : table) {
+
+                	if(card3 == -1)continue;
+                    if (card1 == card3 || card2 == card3) continue;
+                    if (Cards.isSet(card1, card2, card3)){
+
+                    	return true;
+                    }
+                }
+            }
+        }
+
+        return false;
+
+    }
+	
+	static public int numeroDeCarteToK(int numeroDeCarte) {
+		if(numeroDeCarte == -1)return -1;
+        int a = numeroDeCarte % 3;
+        int b = (numeroDeCarte - a) / 3 % 3;
+        int c = (numeroDeCarte - a - 3 * b) / 9 % 3;
+        int d = (numeroDeCarte - a - 3 * b - 9 * c) / 27 % 3;
+        return ((a + 1) + 4 * (b + 1) + 16 * (c + 1) + 64 * (d + 1));
+    }
+
+    static public int kToNumeroDeCarte(int k) {
+    	if(k == -1)return -1;
+        int a = k % 4;
+        int b = (k - a) / 4 % 4;
+        int c = (k - a - 4 * b) / 16 % 4;
+        int d = (k - a - 4 * b - 16 * c) / 64 % 4;
+        return ((a - 1) + 3 * (b - 1) + 9 * (c - 1) + 27 * (d - 1));
+    }
+	
+	static public void sendGame(Integer[] jeu){
+		lock.lock();
+		try{
+			String game = "theGame/";
+			game += N+"/";
+			for(int i = 0;i<14;i++){
+				game+= jeu[i] + "/"; 
+			}
+			game+= jeu[14]+"/";
+			print_all(game);
+			System.out.println(game);
+		}
+		finally{
+			lock.unlock();
+		}
+	}
+	
+	public static ReentrantLock lock = new ReentrantLock();
+	public static AtomicInteger N = new AtomicInteger(0);
 	
 	public static void main(String args[]){
 		
@@ -118,89 +182,51 @@ public class ChatServer {
 			
 			Thread t = new Thread(){
 				
-
+				
+				
 				public void genererNouveauJeu(){
-			        Random tirage = new Random();
-			        for(int i =0; i<81;i++){
-			        	deck[i]=false;
-			        };
-					for(int i = 0; i<12;i++){
-						boolean flag = true;
-						int numeroDeCarte = -1;
-						while(flag){
-							numeroDeCarte = tirage.nextInt(81);
-							flag = deck[numeroDeCarte];
+					lock.lock();
+					try{
+				        Random tirage = new Random();
+				        for(int i =0; i<81;i++){
+				        	deck[i]=false;
+				        };
+						for(int i = 0; i<12;i++){
+							boolean flag = true;
+							int numeroDeCarte = -1;
+							while(flag){
+								numeroDeCarte = tirage.nextInt(81);
+								flag = deck[numeroDeCarte];
+							}
+							
+							jeu[i]= numeroDeCarte;
+							deck[numeroDeCarte]=true;
+							table[i]= numeroDeCarteToK(numeroDeCarte);
+	
 						}
-						
-						jeu[i]= numeroDeCarte;
-						deck[numeroDeCarte]=true;
-						table[i]= numeroDeCarteToK(numeroDeCarte);
-						if(table[i]<85){
+						jeu[12]=-1;
+						jeu[13]=-1;
+						jeu[14]=-1;
+						table[12]=-1;
+						table[13]=-1;
+						table[14]=-1;
+						if(!isThereMatch(table)){
+							for(int i = 12; i<15;i++){
+								boolean flag = true;
+								int numeroDeCarte = -1;
+								while(flag){
+									numeroDeCarte = tirage.nextInt(81);
+									flag = deck[numeroDeCarte];
+								}
+								
+								jeu[i]= numeroDeCarte;
+								deck[numeroDeCarte]=true;
+								table[i]= numeroDeCarteToK(numeroDeCarte);
+							}
 						}
+						N.getAndIncrement();
 					}
-					jeu[12]=-1;
-					jeu[13]=-1;
-					jeu[14]=-1;
-					table[12]=-1;
-					table[13]=-1;
-					table[14]=-1;
-					if(isThereMatch()){
-
-					}
-					else{
-					}
-				}
-				
-				public boolean isThereMatch() {
-
-			        for (int card1 : table) {
-
-			        	if(card1 == -1) continue;
-			            for (int card2 : table) {
-
-			                if (card1 == card2) continue;
-			                if(card2 == -1) continue;
-			                for (int card3 : table) {
-
-			                	if(card3 == -1)continue;
-			                    if (card1 == card3 || card2 == card3) continue;
-			                    if (Cards.isSet(card1, card2, card3)){
-
-			                    	return true;
-			                    }
-			                }
-			            }
-			        }
-
-			        return false;
-
-			    }
-				
-				public int numeroDeCarteToK(int numeroDeCarte) {
-					if(numeroDeCarte == -1)return -1;
-			        int a = numeroDeCarte % 3;
-			        int b = (numeroDeCarte - a) / 3 % 3;
-			        int c = (numeroDeCarte - a - 3 * b) / 9 % 3;
-			        int d = (numeroDeCarte - a - 3 * b - 9 * c) / 27 % 3;
-			        return ((a + 1) + 4 * (b + 1) + 16 * (c + 1) + 64 * (d + 1));
-			    }
-
-			    public int kToNumeroDeCarte(int k) {
-			    	if(k == -1)return -1;
-			        int a = k % 4;
-			        int b = (k - a) / 4 % 4;
-			        int c = (k - a - 4 * b) / 16 % 4;
-			        int d = (k - a - 4 * b - 16 * c) / 64 % 4;
-			        return ((a - 1) + 3 * (b - 1) + 9 * (c - 1) + 27 * (d - 1));
-			    }
-				
-				public void sendGame(){
-					String game = "theGame/";
-					for(int i = 0;i<15;i++){
-						game+= jeu[i] + "/"; 
-					}
-					print_all(game);
-					System.out.println(game);
+					finally{lock.unlock();}
 				}
 				
 				public void run(){
@@ -221,10 +247,11 @@ public class ChatServer {
 								//La on met notre truc
 								if(token.equals("NEWGAME")){
 									genererNouveauJeu();
-									sendGame();
+									sendGame(jeu);
 								}
 								
 								else if(token.equals("TRY")){
+									System.out.println("trying");
 								}
 								
 								

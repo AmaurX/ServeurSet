@@ -8,8 +8,11 @@ import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.UnknownHostException;
+import java.util.Map;
 import java.util.Random;
 import java.util.Scanner;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -22,6 +25,20 @@ final class ConnectionList {
 		login = l;
 		out = h;
 		tail = tl;
+	}
+}
+final class Essai{
+	int N;
+	int a;
+	int b;
+	int c;
+	String joueur;
+	public Essai(int N,int a, int b, int c,String joueur){
+		this.N = N;
+		this.a = a;
+		this.b = b;
+		this.c = c;
+		this.joueur = joueur;
 	}
 }
 
@@ -90,6 +107,27 @@ public class ChatServer {
 			}		
 		}
 	}
+	
+	static String[] getPlayers(){
+		ConnectionList cl = outs;
+		int count = 0;
+		while(cl != null){
+			count++;
+			cl = cl.tail;
+		}
+		String[] result = new String[count];
+		
+		cl = outs;
+		count = 0;
+		while(cl != null){
+			result[count]=cl.login;
+			cl = cl.tail;
+			count++;
+		}
+		return result;
+
+	}
+	
 	static public boolean isThereMatch(Integer[] table) {
 
         for (int card1 : table) {
@@ -150,8 +188,48 @@ public class ChatServer {
 		}
 	}
 	
+	
+	
 	public static ReentrantLock lock = new ReentrantLock();
 	public static AtomicInteger N = new AtomicInteger(0);
+	static SynchronousQueue<Essai> essaiQueue = new SynchronousQueue<Essai>();
+	
+	
+	static Runnable correcteur = new Runnable(){
+
+		@Override
+		public void run() {
+			
+			Map<String, Integer> score = null ;
+			int nombreJoueurs = 0;
+			while(true){
+				Essai essai;
+				try {
+					essai =essaiQueue.take();
+				} catch (InterruptedException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
+				
+				String[] joueurs = getPlayers();
+				
+				
+				for(String player : joueurs){
+					if(!score.containsKey(player)){
+						score.put(player, 0);
+						nombreJoueurs++;
+					}
+				}
+				
+				
+				
+				
+			}
+			
+		}
+		
+	};
+	
 	
 	public static void main(String args[]){
 		
@@ -252,6 +330,16 @@ public class ChatServer {
 								
 								else if(token.equals("TRY")){
 									System.out.println("trying");
+									int n = sc.nextInt();
+									if(N.intValue()!= n ){
+										Essai e = new Essai(n, sc.nextInt(),sc.nextInt(),sc.nextInt(), my_login );
+										try {
+											essaiQueue.put(e);
+										} catch (InterruptedException e1) {
+											// TODO Auto-generated catch block
+											e1.printStackTrace();
+										}
+									}
 								}
 								
 								

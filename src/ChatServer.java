@@ -218,6 +218,14 @@ public class ChatServer {
 			while (true) {
 				Essai essai;
 				try {
+					String[] joueurs = getPlayers();
+					for (String player : joueurs) {
+						if (!score.containsKey(player)) {
+							score.put(player, 0);
+							nombreJoueurs++;
+						}
+					}
+					
 					System.out.println("debug: really trying");
 					essai = essaiQueue.take();
 					if (essai == null) {
@@ -228,9 +236,9 @@ public class ChatServer {
 						nombreJoueurs++;
 					}
 					Integer[] tentative = new Integer[3];
-					tentative[0] = numeroDeCarteToK(essai.a);
-					tentative[1] = numeroDeCarteToK(essai.b);
-					tentative[2] = numeroDeCarteToK(essai.c);
+					tentative[0] = table[essai.a];
+					tentative[1] = table[essai.b];
+					tentative[2] = table[essai.c];
 					ConnectionList cl = outs;
 					while (!cl.login.equals(essai.joueur)) {
 						cl = cl.tail;
@@ -239,19 +247,19 @@ public class ChatServer {
 						score.put(essai.joueur, score.get(essai.joueur) + 1);
 						int[] carteAModifier = new int[3];
 						for (int i = 0; i < 15; i++) {
-							if (jeu[i] == essai.a) {
+							if (i == essai.a) {
 								carteAModifier[0] = i;
 							}
-							if (jeu[i] == essai.b) {
+							if (i == essai.b) {
 								carteAModifier[1] = i;
 							}
-							if (jeu[i] == essai.c) {
+							if (i == essai.c) {
 								carteAModifier[2] = i;
 							}
 						}
-						deck[essai.a] = false;
-						deck[essai.b] = false;
-						deck[essai.c] = false;
+						deck[jeu[essai.a]] = false;
+						deck[jeu[essai.b]] = false;
+						deck[jeu[essai.c]] = false;
 						Random tirage = new Random();
 						for (int i : carteAModifier) {
 							boolean flag = true;
@@ -267,24 +275,29 @@ public class ChatServer {
 						// il me semble que je doive update le N comme on est
 						// dans un nouveau jeu
 						N.getAndIncrement();
-						cl.out.println("RESULT/+/");
+						cl.out.println("result/+/");
 						sendGame(jeu);
-					} else {
+					} 
+					else {
 						score.put(essai.joueur, score.get(essai.joueur) - 1);
-						cl.out.println("RESULT/-/");
+						cl.out.println("result/-/");
 						sendGameToOne(jeu, essai.joueur);
 					}
+					
+					String scoreMessage = "scores/";
+					for (Map.Entry<String, Integer> entry : score.entrySet()) {
+					    String key = entry.getKey();
+					    Object value = entry.getValue();
+					    scoreMessage += key +"/";
+					    scoreMessage += value +"/";
+					}
+					print_all(scoreMessage);
+					
 				} catch (InterruptedException e) {
 					// TODO Auto-generated catch block
 					e.printStackTrace();
 				}
-				String[] joueurs = getPlayers();
-				for (String player : joueurs) {
-					if (!score.containsKey(player)) {
-						score.put(player, 0);
-						nombreJoueurs++;
-					}
-				}
+				
 			}
 		}
 	};
@@ -293,6 +306,51 @@ public class ChatServer {
 	public static Integer[] table;
 	public static boolean[] deck;
 
+	public static void genererNouveauJeu() {
+		lock.lock();
+		try {
+			Random tirage = new Random();
+			for (int i = 0; i < 81; i++) {
+				deck[i] = false;
+			}
+			;
+			for (int i = 0; i < 12; i++) {
+				boolean flag = true;
+				int numeroDeCarte = -1;
+				while (flag) {
+					numeroDeCarte = tirage.nextInt(81);
+					flag = deck[numeroDeCarte];
+				}
+				jeu[i] = numeroDeCarte;
+				deck[numeroDeCarte] = true;
+				table[i] = numeroDeCarteToK(numeroDeCarte);
+			}
+			jeu[12] = -1;
+			jeu[13] = -1;
+			jeu[14] = -1;
+			table[12] = -1;
+			table[13] = -1;
+			table[14] = -1;
+			if (!isThereMatch(table)) {
+				for (int i = 12; i < 15; i++) {
+					boolean flag = true;
+					int numeroDeCarte = -1;
+					while (flag) {
+						numeroDeCarte = tirage.nextInt(81);
+						flag = deck[numeroDeCarte];
+					}
+
+					jeu[i] = numeroDeCarte;
+					deck[numeroDeCarte] = true;
+					table[i] = numeroDeCarteToK(numeroDeCarte);
+				}
+			}
+			N.getAndIncrement();
+		} finally {
+			lock.unlock();
+		}
+	}
+	
 	public static void main(String args[]) {
 
 		ServerSocket server = createServer(1709);
@@ -310,7 +368,8 @@ public class ChatServer {
 		jeu = new Integer[15];
 		table = new Integer[15];
 		deck = new boolean[81];
-
+		genererNouveauJeu();
+		
 		while (!killed) {
 			final Socket s = acceptConnection(server);
 			System.out.println("Le serveur est à l'écoute du port " + s.getLocalPort());
@@ -321,50 +380,7 @@ public class ChatServer {
 
 			Thread t = new Thread() {
 
-				public void genererNouveauJeu() {
-					lock.lock();
-					try {
-						Random tirage = new Random();
-						for (int i = 0; i < 81; i++) {
-							deck[i] = false;
-						}
-						;
-						for (int i = 0; i < 12; i++) {
-							boolean flag = true;
-							int numeroDeCarte = -1;
-							while (flag) {
-								numeroDeCarte = tirage.nextInt(81);
-								flag = deck[numeroDeCarte];
-							}
-							jeu[i] = numeroDeCarte;
-							deck[numeroDeCarte] = true;
-							table[i] = numeroDeCarteToK(numeroDeCarte);
-						}
-						jeu[12] = -1;
-						jeu[13] = -1;
-						jeu[14] = -1;
-						table[12] = -1;
-						table[13] = -1;
-						table[14] = -1;
-						if (!isThereMatch(table)) {
-							for (int i = 12; i < 15; i++) {
-								boolean flag = true;
-								int numeroDeCarte = -1;
-								while (flag) {
-									numeroDeCarte = tirage.nextInt(81);
-									flag = deck[numeroDeCarte];
-								}
-
-								jeu[i] = numeroDeCarte;
-								deck[numeroDeCarte] = true;
-								table[i] = numeroDeCarteToK(numeroDeCarte);
-							}
-						}
-						N.getAndIncrement();
-					} finally {
-						lock.unlock();
-					}
-				}
+				
 
 				public void run() {
 					String my_login = null;
@@ -383,9 +399,9 @@ public class ChatServer {
 							String token = sc.next();
 							if (my_login != null) {
 								// La on met notre truc
-								if (token.equals("NEWGAME")) {
-									genererNouveauJeu();
-									sendGame(jeu);
+								if (token.equals("GAMEPLEASE")) {
+								
+									sendGameToOne(jeu,my_login);
 								} else if (token.equals("TRY")) {
 									System.out.println("trying");
 									String indice = sc.next();

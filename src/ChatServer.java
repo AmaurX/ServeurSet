@@ -235,6 +235,9 @@ public class ChatServer {
 						score.put(essai.joueur, 0);
 						nombreJoueurs++;
 					}
+					if(N.get()!=essai.N){
+						continue;
+					}
 					Integer[] tentative = new Integer[3];
 					tentative[0] = table[essai.a];
 					tentative[1] = table[essai.b];

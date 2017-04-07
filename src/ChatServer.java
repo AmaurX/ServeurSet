@@ -225,8 +225,6 @@ public class ChatServer {
 							nombreJoueurs++;
 						}
 					}
-					
-					System.out.println("debug: really trying");
 					essai = essaiQueue.take();
 					if (essai == null) {
 						continue;
@@ -272,32 +270,28 @@ public class ChatServer {
 							deck[numeroDeCarte] = true;
 							table[i] = numeroDeCarteToK(numeroDeCarte);
 						}
-						// il me semble que je doive update le N comme on est
-						// dans un nouveau jeu
 						N.getAndIncrement();
 						cl.out.println("result/+/");
 						sendGame(jeu);
-					} 
-					else {
+					} else {
 						score.put(essai.joueur, score.get(essai.joueur) - 1);
 						cl.out.println("result/-/");
 						sendGameToOne(jeu, essai.joueur);
 					}
-					
 					String scoreMessage = "scores/";
 					for (Map.Entry<String, Integer> entry : score.entrySet()) {
-					    String key = entry.getKey();
-					    Object value = entry.getValue();
-					    scoreMessage += key +"/";
-					    scoreMessage += value +"/";
+						String key = entry.getKey();
+						Object value = entry.getValue();
+						scoreMessage += key + "/";
+						scoreMessage += value + "/";
 					}
 					print_all(scoreMessage);
-					
+
 				} catch (InterruptedException e) {
 					// TODO Auto-generated catch block
 					e.printStackTrace();
 				}
-				
+
 			}
 		}
 	};
@@ -350,7 +344,7 @@ public class ChatServer {
 			lock.unlock();
 		}
 	}
-	
+
 	public static void main(String args[]) {
 
 		ServerSocket server = createServer(1709);
@@ -369,7 +363,7 @@ public class ChatServer {
 		table = new Integer[15];
 		deck = new boolean[81];
 		genererNouveauJeu();
-		
+
 		while (!killed) {
 			final Socket s = acceptConnection(server);
 			System.out.println("Le serveur est à l'écoute du port " + s.getLocalPort());
@@ -380,15 +374,11 @@ public class ChatServer {
 
 			Thread t = new Thread() {
 
-				
-
 				public void run() {
 					String my_login = null;
 					try {
 						while (true) {
-
 							String line;
-
 							try {
 								line = s_in.readLine();
 							} catch (IOException e) {
@@ -400,17 +390,11 @@ public class ChatServer {
 							if (my_login != null) {
 								// La on met notre truc
 								if (token.equals("GAMEPLEASE")) {
-								
-									sendGameToOne(jeu,my_login);
+									sendGameToOne(jeu, my_login);
 								} else if (token.equals("TRY")) {
-									System.out.println("trying");
 									String indice = sc.next();
 									int n = Integer.parseInt(indice);
-									if (N.intValue() == n) { // on arrive jamais
-																// dedans, j'ai
-																// changé le !=
-																// en ==
-
+									if (N.intValue() == n) { 
 										Essai e = new Essai(n, sc.nextInt(), sc.nextInt(), sc.nextInt(), my_login);
 										try {
 											essaiQueue.put(e);

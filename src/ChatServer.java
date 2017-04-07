@@ -12,6 +12,7 @@ import java.util.Map;
 import java.util.Random;
 import java.util.Scanner;
 import java.util.concurrent.SynchronousQueue;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -193,9 +194,26 @@ public class ChatServer {
 			}
 			game += jeu[14] + "/";
 			print_all(game);
-			System.out.println(game);
 		} finally {
 			lock.unlock();
+		}
+	}
+
+	// Permet de réordonner le plateau de jeu en cas de passage d'un plateau à
+	// 15 cartes à un plateau à 12 cartes
+	static public void nettoyageDePlateau() {
+		for (int i = 0; i < 12; i++) {
+			if (jeu[i] == -1) {
+				int a = jeu[i], b = table[i];
+				int k = i + 1;
+				while (jeu[k] == -1) {
+					k++;
+				}
+				jeu[i] = jeu[k];
+				table[i] = table[k];
+				jeu[k] = a;
+				table[k] = b;
+			}
 		}
 	}
 
@@ -223,12 +241,13 @@ public class ChatServer {
 
 	public static ReentrantLock lock = new ReentrantLock();
 	// N contient le numéro de plateau courant, associé à chaque ensemble de
-	// cartes présent sur la table
+	// cartes présentes sur la table
 	public static AtomicInteger N = new AtomicInteger(0);
 	// Permet le stockage concurrent des essais provenant des différents clients
 	static SynchronousQueue<Essai> essaiQueue = new SynchronousQueue<Essai>();
 	// Stocke les scores des clients
 	static HashMap<String, Integer> score;
+	public static boolean cartes15 = false;
 
 	// Runnable permettant de traiter l'ensemble des tests de Set envoyé par les
 	// clients, en charge aussi de la gestion des scores des clients. En cas de
@@ -237,7 +256,6 @@ public class ChatServer {
 		@Override
 		public void run() {
 			score = new HashMap<String, Integer>();
-			int nombreJoueurs = 0;
 			while (true) {
 				Essai essai;
 				try {
@@ -245,7 +263,6 @@ public class ChatServer {
 					for (String player : joueurs) {
 						if (!score.containsKey(player)) {
 							score.put(player, 0);
-							nombreJoueurs++;
 						}
 					}
 					essai = essaiQueue.take();
@@ -254,7 +271,6 @@ public class ChatServer {
 					}
 					if (!score.containsKey(essai.joueur)) {
 						score.put(essai.joueur, 0);
-						nombreJoueurs++;
 					}
 					if (N.get() != essai.N) {
 						continue;
@@ -268,6 +284,9 @@ public class ChatServer {
 						cl = cl.tail;
 					}
 					if (isThereMatch(tentative)) {
+						String message = "dernierSet/" + table[essai.a] + "/" + table[essai.b] + "/" + table[essai.c]
+								+ "/";
+						print_all(message);
 						score.put(essai.joueur, score.get(essai.joueur) + 1);
 						int[] carteAModifier = new int[3];
 						for (int i = 0; i < 15; i++) {
@@ -285,22 +304,63 @@ public class ChatServer {
 						deck[jeu[essai.b]] = false;
 						deck[jeu[essai.c]] = false;
 						Random tirage = new Random();
-						for (int i : carteAModifier) {
-							boolean flag = true;
-							int numeroDeCarte = -1;
-							while (flag) {
-								numeroDeCarte = tirage.nextInt(81);
-								flag = deck[numeroDeCarte];
+						if (cartes15) {
+							for (int i : carteAModifier) {
+								table[i] = -1;
+								jeu[i] = -1;
 							}
-							jeu[i] = numeroDeCarte;
-							deck[numeroDeCarte] = true;
-							table[i] = numeroDeCarteToK(numeroDeCarte);
+							if (!isThereMatch(table)) {
+								cartes15 = true;
+								for (int i : carteAModifier) {
+									boolean flag = true;
+									int numeroDeCarte = -1;
+									while (flag) {
+										numeroDeCarte = tirage.nextInt(81);
+										flag = deck[numeroDeCarte];
+									}
+									jeu[i] = numeroDeCarte;
+									deck[numeroDeCarte] = true;
+									table[i] = numeroDeCarteToK(numeroDeCarte);
+								}
+							} else {
+								cartes15 = false;
+								nettoyageDePlateau();
+							}
+						} else {
+							for (int i : carteAModifier) {
+								boolean flag = true;
+								int numeroDeCarte = -1;
+								while (flag) {
+									numeroDeCarte = tirage.nextInt(81);
+									flag = deck[numeroDeCarte];
+								}
+								jeu[i] = numeroDeCarte;
+								deck[numeroDeCarte] = true;
+								table[i] = numeroDeCarteToK(numeroDeCarte);
+							}
+							nettoyageDePlateau();
+							if (!isThereMatch(table)) {
+								cartes15=true;
+								for (int i = 12; i < 15; i++) {
+									boolean flag = true;
+									int numeroDeCarte = -1;
+									while (flag) {
+										numeroDeCarte = tirage.nextInt(81);
+										flag = deck[numeroDeCarte];
+									}
+									jeu[i] = numeroDeCarte;
+									deck[numeroDeCarte] = true;
+									table[i] = numeroDeCarteToK(numeroDeCarte);
+								}
+							}
 						}
 						N.getAndIncrement();
+						System.out.println(essai.joueur + " avait raison, nouveau plateau: n°" + N);
 						cl.out.println("result/" + score.get(essai.joueur) + "/");
 						sendGame(jeu);
 					} else {
 						score.put(essai.joueur, score.get(essai.joueur) - 1);
+						System.out.println(essai.joueur + " avait tord");
 						cl.out.println("result/" + score.get(essai.joueur) + "/");
 						sendGameToOne(jeu, essai.joueur);
 					}
@@ -313,7 +373,6 @@ public class ChatServer {
 					}
 					print_all(scoreMessage);
 				} catch (InterruptedException e) {
-					// TODO Auto-generated catch block
 					e.printStackTrace();
 				}
 			}
@@ -353,6 +412,7 @@ public class ChatServer {
 			table[13] = -1;
 			table[14] = -1;
 			if (!isThereMatch(table)) {
+				cartes15=true;
 				for (int i = 12; i < 15; i++) {
 					boolean flag = true;
 					int numeroDeCarte = -1;
@@ -379,7 +439,6 @@ public class ChatServer {
 		try {
 			address = InetAddress.getLocalHost();
 		} catch (UnknownHostException e1) {
-			// TODO Auto-generated catch block
 			e1.printStackTrace();
 		}
 		String hostIP = address.getHostAddress();
@@ -399,8 +458,6 @@ public class ChatServer {
 		// Thread client
 		while (!killed) {
 			final Socket s = acceptConnection(server);
-			System.out.println("Le serveur est à l'écoute du port " + s.getLocalPort());
-			System.out.println("connection etablie");
 			final PrintWriter s_out = connectionOut(s);
 			final BufferedReader s_in = connectionIn(s);
 
@@ -421,7 +478,6 @@ public class ChatServer {
 							sc.useDelimiter("/");
 							String token = sc.next();
 							if (my_login != null) {
-								// La on met notre truc
 								if (token.equals("GAMEPLEASE")) {
 									sendGameToOne(jeu, my_login);
 								} else if (token.equals("TRY")) {
@@ -432,14 +488,9 @@ public class ChatServer {
 										try {
 											essaiQueue.put(e);
 										} catch (InterruptedException e1) {
-											// TODO Auto-generated catch block
 											e1.printStackTrace();
 										}
 									}
-								} else if (token.equals("SEND")) {
-									sc.useDelimiter("\n");
-									String message = sc.next();
-									print_all(my_login + ":" + message);
 								} else if (token.equals("LOGOUT")) {
 									ConnectionList cl = null;
 									score.remove(my_login);
@@ -451,6 +502,7 @@ public class ChatServer {
 										outs = outs.tail;
 									}
 									outs = cl;
+									System.out.println(my_login + " est partie.");
 									s_out.println("Bye Bye " + my_login);
 									throw new RuntimeException("Requested by user");
 								} else
@@ -466,6 +518,7 @@ public class ChatServer {
 									cl = cl.tail;
 								}
 								outs = new ConnectionList(my_login, s_out, outs);
+								System.out.println(my_login + " est connecté");
 								print_all("Welcome " + my_login);
 							} else if (token.equals("KILL")) {
 								killed = true;

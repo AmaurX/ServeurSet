@@ -11,23 +11,11 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Random;
 import java.util.Scanner;
-import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReentrantLock;
 
-final class ConnectionList {
-	PrintWriter out;
-	String login;
-	ConnectionList tail;
-
-	ConnectionList(String l, PrintWriter h, ConnectionList tl) {
-		login = l;
-		out = h;
-		tail = tl;
-	}
-}
-
+//Classe encapsulant un essai de Set concernant le plateau N, de la part d'un client login.
 final class Essai {
 	int N;
 	int a;
@@ -41,6 +29,19 @@ final class Essai {
 		this.b = b;
 		this.c = c;
 		this.joueur = joueur;
+	}
+}
+
+/* Récupération du TD3 de l'ancien cours INF422 */
+final class ConnectionList {
+	PrintWriter out;
+	String login;
+	ConnectionList tail;
+
+	ConnectionList(String l, PrintWriter h, ConnectionList tl) {
+		login = l;
+		out = h;
+		tail = tl;
 	}
 }
 
@@ -108,6 +109,10 @@ public class ChatServer {
 		}
 	}
 
+	/* Fin récupération du TD3 de l'ancien cours INF422 */
+
+	// Permet de récupérer la liste des clients et de retourner le tableau de
+	// leur login
 	static String[] getPlayers() {
 		ConnectionList cl = outs;
 		int count = 0;
@@ -126,6 +131,7 @@ public class ChatServer {
 		return result;
 	}
 
+	// Permet de tester la présence d'un match dans un Set de 3 cartes
 	static public boolean isThereMatch(Integer[] table) {
 		for (int card1 : table) {
 			if (card1 == -1)
@@ -149,6 +155,8 @@ public class ChatServer {
 		return false;
 	}
 
+	// Permet la conversion du numéro de la carte (0 à 80) en leur valeur en
+	// tant que cards
 	static public int numeroDeCarteToK(int numeroDeCarte) {
 		if (numeroDeCarte == -1)
 			return -1;
@@ -159,6 +167,8 @@ public class ChatServer {
 		return ((a + 1) + 4 * (b + 1) + 16 * (c + 1) + 64 * (d + 1));
 	}
 
+	// Permet la conversion du numéro de la carte (0 à 80) en leur valeur en
+	// tant que cards
 	static public int kToNumeroDeCarte(int k) {
 		if (k == -1)
 			return -1;
@@ -169,6 +179,10 @@ public class ChatServer {
 		return ((a - 1) + 3 * (b - 1) + 9 * (c - 1) + 27 * (d - 1));
 	}
 
+	// Envoie l'ensemble des cartes présentes sur le plateau de jeu à tous les
+	// joueurs, en cas de changement de plateau de jeu. Elle est protégée par un
+	// lock pour éviter que les informations du plateau ne soient modifiées
+	// entre temps
 	static public void sendGame(Integer[] jeu) {
 		lock.lock();
 		try {
@@ -185,6 +199,9 @@ public class ChatServer {
 		}
 	}
 
+	// Envoie l'ensemble des cartes présentes sur le plateau de jeu à un joueur.
+	// Elle est protégée par un lock pour éviter que les informations du plateau
+	// ne soient modifiées entre temps
 	static public void sendGameToOne(Integer[] jeu, String login) {
 		lock.lock();
 		try {
@@ -194,26 +211,32 @@ public class ChatServer {
 				game += jeu[i] + "/";
 			}
 			game += jeu[14] + "/";
-
 			ConnectionList cl = outs;
 			while (!cl.login.equals(login)) {
 				cl = cl.tail;
 			}
 			cl.out.println(game);
-			System.out.println("Game inchangé, erreur de: " + login);
 		} finally {
 			lock.unlock();
 		}
 	}
 
 	public static ReentrantLock lock = new ReentrantLock();
+	// N contient le numéro de plateau courant, associé à chaque ensemble de
+	// cartes présent sur la table
 	public static AtomicInteger N = new AtomicInteger(0);
+	// Permet le stockage concurrent des essais provenant des différents clients
 	static SynchronousQueue<Essai> essaiQueue = new SynchronousQueue<Essai>();
+	// Stocke les scores des clients
+	static HashMap<String, Integer> score;
 
+	// Runnable permettant de traiter l'ensemble des tests de Set envoyé par les
+	// clients, en charge aussi de la gestion des scores des clients. En cas de
+	// bon Set, il tire des nouvelles cartes
 	static Runnable correcteur = new Runnable() {
 		@Override
 		public void run() {
-			HashMap<String, Integer> score = new HashMap<String, Integer>();
+			score = new HashMap<String, Integer>();
 			int nombreJoueurs = 0;
 			while (true) {
 				Essai essai;
@@ -232,6 +255,9 @@ public class ChatServer {
 					if (!score.containsKey(essai.joueur)) {
 						score.put(essai.joueur, 0);
 						nombreJoueurs++;
+					}
+					if (N.get() != essai.N) {
+						continue;
 					}
 					Integer[] tentative = new Integer[3];
 					tentative[0] = table[essai.a];
@@ -271,11 +297,11 @@ public class ChatServer {
 							table[i] = numeroDeCarteToK(numeroDeCarte);
 						}
 						N.getAndIncrement();
-						cl.out.println("result/+/");
+						cl.out.println("result/" + score.get(essai.joueur) + "/");
 						sendGame(jeu);
 					} else {
 						score.put(essai.joueur, score.get(essai.joueur) - 1);
-						cl.out.println("result/-/");
+						cl.out.println("result/" + score.get(essai.joueur) + "/");
 						sendGameToOne(jeu, essai.joueur);
 					}
 					String scoreMessage = "scores/";
@@ -286,20 +312,22 @@ public class ChatServer {
 						scoreMessage += value + "/";
 					}
 					print_all(scoreMessage);
-
 				} catch (InterruptedException e) {
 					// TODO Auto-generated catch block
 					e.printStackTrace();
 				}
-
 			}
 		}
 	};
 
+	// jeu contient les numéros de carte (0 à 81), table contient les valeur en
+	// tant que Cards, deck contient le paquet de carte où on remet les cartes
+	// ayant formées un Set
 	public static Integer[] jeu;
 	public static Integer[] table;
 	public static boolean[] deck;
 
+	// Permet de générer un nouveau jeu, lors de la création du serveur
 	public static void genererNouveauJeu() {
 		lock.lock();
 		try {
@@ -307,7 +335,6 @@ public class ChatServer {
 			for (int i = 0; i < 81; i++) {
 				deck[i] = false;
 			}
-			;
 			for (int i = 0; i < 12; i++) {
 				boolean flag = true;
 				int numeroDeCarte = -1;
@@ -333,7 +360,6 @@ public class ChatServer {
 						numeroDeCarte = tirage.nextInt(81);
 						flag = deck[numeroDeCarte];
 					}
-
 					jeu[i] = numeroDeCarte;
 					deck[numeroDeCarte] = true;
 					table[i] = numeroDeCarteToK(numeroDeCarte);
@@ -345,8 +371,9 @@ public class ChatServer {
 		}
 	}
 
+	// Sert à lancer le serveur et à prendre en compte les nouvelles connections
+	// de client
 	public static void main(String args[]) {
-
 		ServerSocket server = createServer(1709);
 		InetAddress address = null;
 		try {
@@ -358,22 +385,28 @@ public class ChatServer {
 		String hostIP = address.getHostAddress();
 		String hostName = address.getHostName();
 		System.out.println("Le nom de serveur est : " + hostName + "\nIP: " + hostIP);
-
 		jeu = new Integer[15];
 		table = new Integer[15];
 		deck = new boolean[81];
 		genererNouveauJeu();
 
+		// Lancement du Thread en charge des vérifications de Set
+		Thread corrige = new Thread(correcteur);
+		corrige.start();
+
+		// Le acceptConnection est bloquant permettant ainsi d'attendre le
+		// prochain client pour qui toute la suite sera exécutée, notamment un
+		// Thread client
 		while (!killed) {
 			final Socket s = acceptConnection(server);
 			System.out.println("Le serveur est à l'écoute du port " + s.getLocalPort());
-
 			System.out.println("connection etablie");
 			final PrintWriter s_out = connectionOut(s);
 			final BufferedReader s_in = connectionIn(s);
 
-			Thread t = new Thread() {
-
+			// Le Thread client est en charge de l'ensemble du traitement des
+			// communications entre le serveur et le client
+			Thread client = new Thread() {
 				public void run() {
 					String my_login = null;
 					try {
@@ -394,7 +427,7 @@ public class ChatServer {
 								} else if (token.equals("TRY")) {
 									String indice = sc.next();
 									int n = Integer.parseInt(indice);
-									if (N.intValue() == n) { 
+									if (N.intValue() == n) {
 										Essai e = new Essai(n, sc.nextInt(), sc.nextInt(), sc.nextInt(), my_login);
 										try {
 											essaiQueue.put(e);
@@ -408,6 +441,16 @@ public class ChatServer {
 									String message = sc.next();
 									print_all(my_login + ":" + message);
 								} else if (token.equals("LOGOUT")) {
+									ConnectionList cl = null;
+									score.remove(my_login);
+									while (outs != null) {
+										if (outs.out == s_out) {
+										} else {
+											cl = new ConnectionList(outs.login, outs.out, cl);
+										}
+										outs = outs.tail;
+									}
+									outs = cl;
 									s_out.println("Bye Bye " + my_login);
 									throw new RuntimeException("Requested by user");
 								} else
@@ -441,6 +484,7 @@ public class ChatServer {
 						}
 						if (my_login != null) {
 							ConnectionList cl = null;
+							score.remove(my_login);
 							while (outs != null) {
 								if (outs.out == s_out) {
 								} else {
@@ -454,11 +498,8 @@ public class ChatServer {
 					}
 				}
 			};
-			t.start();
-			Thread corrige = new Thread(correcteur);
-			corrige.start();
+			client.start();
 		}
 		System.exit(0);
 	}
-
 }
